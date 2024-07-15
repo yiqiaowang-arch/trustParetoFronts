@@ -1,3 +1,5 @@
+from operator import le
+from turtle import left
 import geopandas as gpd
 import pandas as pd
 import numpy as np
@@ -29,7 +31,7 @@ class Building:
                          'HVAC_HEATING_AS4': 45  # floor heating, needs low supply temperature
                          } # output temperature of the heating emission system (TODO: check if it's currently used)
         air_conditioning_df: pd.DataFrame = gpd.read_file(scenario_path + r'\inputs\building-properties\air_conditioning.dbf', ignore_geometry=True)
-        air_conditioning_df.set_index('Name')
+        air_conditioning_df.set_index(keys='Name', inplace=True)
         self.emission_type: str = str(air_conditioning_df.loc[self.name, 'type_hs'])
         self.emission_temp: int = emission_dict[self.emission_type]
 
@@ -56,14 +58,18 @@ class Building:
         demand_df = pd.read_csv(demand_path + '\\' + self.name + '.csv')
         # set index as date, but the date is not yet in datetime format so it needs to be converted
         demand_df.set_index(pd.to_datetime(demand_df['DATE']), inplace=True)
+        demand_df.index.rename('t', inplace=True)
         supply_path = self.scenario_path + r'\outputs\data\potentials\solar'
         pv_df = pd.read_csv(supply_path + '\\' + self.name + '_PV.csv')
         # delete the last 6 strings of the date, which is unnecessary
         pv_df.set_index(pd.to_datetime(pv_df['Date'].str[:-6]), inplace=True)
+        pv_df.index.rename('t', inplace=True)
         pvt_df = pd.read_csv(supply_path + '\\' + self.name + '_PVT.csv')
         pvt_df.set_index(pd.to_datetime(pvt_df['Date'].str[:-6]), inplace=True)
+        pvt_df.index.rename('t', inplace=True)
         sc_df = pd.read_csv(supply_path + '\\' + self.name + '_SC_FP.csv')
         sc_df.set_index(pd.to_datetime(sc_df['Date'].str[:-6]), inplace=True)
+        sc_df.index.rename('t', inplace=True)
 
         # time series data
         # read demand data
@@ -87,20 +93,6 @@ class Building:
         df_pvt_h_relative_intensity.replace(np.inf, 0, inplace=True)
         self.pvt_h_relative_intensity: pd.DataFrame = df_pvt_h_relative_intensity.astype('float64')
         self.scfp_intensity: pd.DataFrame = self.scfp.astype('float64') / self.area
-        # change all timeseries data's index column name to 't'
-        self.app.index.names = ['t']
-        self.sh.index.names = ['t']
-        self.sc.index.names = ['t']
-        self.dhw.index.names = ['t']
-        self.pv.index.names = ['t']
-        self.pvt_e.index.names = ['t']
-        self.pvt_h.index.names = ['t']
-        self.scfp.index.names = ['t']
-        self.pv_intensity.index.names = ['t']
-        self.pvt_e_intensity.index.names = ['t']
-        self.pvt_h_intensity.index.names = ['t']
-        self.pvt_h_relative_intensity.index.names = ['t']
-        self.scfp_intensity.index.names = ['t']
 
 
     def set_building_specific_config(self):
@@ -124,14 +116,35 @@ class Building:
         - building_specific_config: calliope.AttrDict (modified)
         """
         name = self.name
-        building_status_dfs_list = [pd.read_csv(self.scenario_path+r'\inputs\is_disheat.csv', index_col=0), # when the building is included in district heating zones
-                                    pd.read_csv(self.scenario_path+r'\inputs\Rebuild.csv', index_col=0), # when will the building be rebuilt
-                                    pd.read_csv(self.scenario_path+r'\inputs\Renovation.csv', index_col=0), # when will the building be renovated
-                                    gpd.read_file(self.scenario_path+r'\inputs\building-properties\supply_systems.dbf', 
-                                                  ignore_geometry=True).set_index("Name", inplace=True)[['type_hs']] # building's current heating system type
-                                    ]
+        # building_status_df: pd.DataFrame = gpd.read_file(self.scenario_path+r'\inputs\building-properties\supply_systems.dbf', 
+        #                                    ignore_geometry=True).set_index("Name")[['type_hs']] # initialize the full df of buildings
+        # building_status_df = building_status_df.merge(pd.read_csv(self.scenario_path+r'\inputs\is_disheat.csv', index_col=0), 
+        #                                               left_index=True, right_index=True, how='left').fillna(0)
+        # building_status_df = building_status_df.merge(pd.read_csv(self.scenario_path+r'\inputs\Rebuild.csv', index_col=0), 
+        #                                               left_index=True, right_index=True, how='left').fillna(0)
+        # building_status_df = building_status_df.merge(pd.read_csv(self.scenario_path+r'\inputs\Renovation.csv', index_col=0), 
+        #                                               left_index=True, right_index=True, how='left').fillna(0)
 
-        building_status = pd.Series({})
+        building_status_dfs_list = [pd.read_csv(self.scenario_path+r'\inputs\is_disheat.csv', index_col=0), # when the building is included in district heating zones
+                                    pd.read_csv(self.scenario_path+r'\inputs\Rebuild.csv', index_col=0).fillna(0), # when will the building be rebuilt
+                                    pd.read_csv(self.scenario_path+r'\inputs\Renovation.csv', index_col=0).fillna(0), # when will the building be renovated
+                                    gpd.read_file(self.scenario_path+r'\inputs\building-properties\supply_systems.dbf', 
+                                                  ignore_geometry=True).set_index("Name")[['type_hs']] # building's current heating system type
+                                    ]
+        
+        # these dataframes all have index as building names
+        # we need to create a pd.Series for each building across all dataframes
+        building_status_df = pd.concat(building_status_dfs_list, axis=1).fillna(0)
+        building_status: object = building_status_df.loc[name]
+        building_status.fillna(False, inplace=True)
+        building_status['is_disheat'] = building_status['DisHeat'].astype(bool)
+        building_status['is_rebuilt'] = building_status['Rebuild'].astype(bool)
+        building_status['is_renovated'] = building_status['Renovation'].astype(bool)
+        building_status['already_GSHP'] = building_status['type_hs'] == 'HVAC_HEATING_AS6'
+        building_status['already_ASHP'] = building_status['type_hs'] == 'HVAC_HEATING_AS7'
+        building_status['no_heat'] = building_status['type_hs'] == 'HVAC_HEATING_AS0'
+        # self.building_status = building_status
+
         # if building is not in district heating area, delete the district heating technologies keys
         if not building_status['is_disheat']:
             self.calliope_config.del_key(f'locations.{name}.techs.DHDC_small_heat')
@@ -139,34 +152,33 @@ class Building:
             self.calliope_config.del_key(f'locations.{name}.techs.DHDC_large_heat')
             
         # if building is not rebuilt, set GSHP and ASHP costs higher
-        if building_status['is_new']:
-            if building_status['is_rebuilt']: # rebuilt, so everything is possible and price is normal
-                pass
-            else: # renovated, can do GSHP and ASHP but price higher
-                if building_status['already_GSHP']: # already has GSHP, only need to set ASHP price higher, and GSHP price to 0
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 0)
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 0)
-                    
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 18086)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
-                elif building_status['already_ASHP']: # ASHP for heating no cost; but ASHP for DHW higher; also GSHP higher
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
-                    
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 0)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 0)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
-                else: # no GSHP and no ASHP, set both to higher price
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
-                    self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
-                    
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 18086)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                    self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
+        if building_status['is_rebuilt']: # rebuilt, so everything is possible and price is normal
+            pass
+        elif building_status['is_renovated']: # renovated, can do GSHP and ASHP but price higher
+            if building_status['already_GSHP']: # already has GSHP, only need to set ASHP price higher, and GSHP price to 0
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 0)
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 0)
+                
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 18086)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 1360)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
+            elif building_status['already_ASHP']: # ASHP for heating no cost; but ASHP for DHW higher; also GSHP higher
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
+                
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 0)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 0)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
+            else: # no GSHP and no ASHP, set both to higher price
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
+                self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
+                
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.purchase', 18086)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP.costs.monetary.energy_cap', 1360)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
+                self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
         else: # not new, so no new GSHP but new ASHP allowed; however if they are already with GSHP or ASHP, then no corresponding cost is applied
             if building_status['already_GSHP']:
                 self.calliope_config.set_key(f'locations.{name}.techs.GSHP_heat.costs.monetary.purchase', 0)
@@ -195,7 +207,7 @@ class Building:
                 self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
                 self.calliope_config.set_key(f'locations.{name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
 
-        del name
+        del building_status_dfs_list, building_status, name
 
 
     def get_building_model( self, store_folder: str,
