@@ -1,8 +1,8 @@
 /pareto_no_wood/
-/*.lp
-/*.nc
-/*.sol
+*.lp
+*.nc
+*.sol
 /calliope/
 /.vscode/
-/*.pyc
+*.pyc
 
