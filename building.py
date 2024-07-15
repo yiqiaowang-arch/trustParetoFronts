@@ -143,7 +143,7 @@ class Building:
         building_status['already_GSHP'] = building_status['type_hs'] == 'HVAC_HEATING_AS6'
         building_status['already_ASHP'] = building_status['type_hs'] == 'HVAC_HEATING_AS7'
         building_status['no_heat'] = building_status['type_hs'] == 'HVAC_HEATING_AS0'
-        # self.building_status = building_status
+        self.building_status = building_status
 
         # if building is not in district heating area, delete the district heating technologies keys
         if not building_status['is_disheat']:
@@ -211,10 +211,10 @@ class Building:
 
 
     def get_building_model( self, store_folder: str,
-                                building_status: object = pd.Series(), flatten_spikes=False, flatten_percentile=0.98, 
-                                to_lp=False, to_yaml=False, 
-                                obj='cost',
-                                emission_constraint=None):
+                           flatten_spikes=False, flatten_percentile=0.98, 
+                           to_lp=False, to_yaml=False, 
+                           obj='cost',
+                           emission_constraint=None):
         """
         Description:
         This function gets building parameters and read the scenario files to create a calliope model for the building.
@@ -232,15 +232,10 @@ class Building:
         Return:
         Model:                      calliope.Model, the optimized model
         """
-        if building_status is not None:
-            self.set_building_specific_config()
-            # set the wood energy cap max to be 0.5W/m2 times building area +400 m2
-            self.calliope_config.set_key(key=f'locations.{self.name}.techs.wood_supply.constraints.energy_cap_max', value=(self.area+400)*0.5*0.001)
 
         if flatten_spikes:
             self.flatten_spikes_demand(percentile=flatten_percentile) # flatten the demand spikes
 
-        self.get_demand_supply()
         dict_timeseries_df = {'demand_el': self.app,
                             'demand_sh': self.sh,
                             'demand_dhw': self.dhw,
@@ -290,7 +285,6 @@ class Building:
 
     def get_pareto_front(self, epsilon:int, 
                          store_folder: str,
-                         building_status: object = pd.Series(), 
                          flatten_spikes=False, flatten_percentile=0.98,
                          to_lp=False, to_yaml=False):
         """
@@ -328,7 +322,7 @@ class Building:
         df_tech_cap_pareto = pd.DataFrame(columns=tech_list, index=range(epsilon+2))
         # first get the emission-optimal solution
         model_emission = self.get_building_model(store_folder=store_folder, 
-                                                 building_status=building_status, flatten_spikes=flatten_spikes, 
+                                                 flatten_spikes=flatten_spikes, 
                                                  flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                  obj='emission')
         model_emission.run()
@@ -343,7 +337,7 @@ class Building:
         
         # then get the cost-optimal solution
         model_cost = self.get_building_model(store_folder=store_folder, 
-                                             building_status=building_status, flatten_spikes=flatten_spikes, 
+                                             flatten_spikes=flatten_spikes, 
                                              flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                              obj='cost')
         # run model cost, and find both cost and emission of this result
@@ -376,7 +370,7 @@ class Building:
                 # set the emission constraint to be emission_min + i * interval
                 emission_constraint = emission_min + i * interval
                 model_epsilon = self.get_building_model(store_folder=store_folder, 
-                                                        building_status=building_status, flatten_spikes=flatten_spikes, 
+                                                        flatten_spikes=flatten_spikes, 
                                                         flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                         obj='cost', emission_constraint=emission_constraint)
                 model_epsilon.run()
@@ -419,50 +413,3 @@ class Building:
         self.sh = self.flatten_spikes(self.sh, self.name, percentile, is_positive=False)
         self.sc = self.flatten_spikes(self.sc, self.name, percentile, is_positive=False)
         self.dhw = self.flatten_spikes(self.dhw, self.name, percentile, is_positive=False)
-
-# # define the buildings with the same developer, and they will devide the DH capex equally
-# # first group: B302065793, B302065787, B302065792, B302065794, B302065791, B302065789
-# # second group: B162597, B162593, B162591, B162595, B162600
-# # third group: B162588, B162587, B162581
-# # fourth group: B302022561, B302022562
-# # fifth group: B302021386, B302021387, B302021388
-# # sixth group: B162416, 162422
-# # seventh group: B302024523, B302024524
-# # eighth group: B302030821, B302030823, B302030825, B302030820, B302030824, B302030818, B302030819
-# # ninth group: B162917, B162920
-# # tenth group: B162932, B162933
-# # eleventh group: B162334, B162335, B162332, B162338
-# # twelfth group: B162372, B162382, B162376, B162393, B162462, B162465, B162467, B162379, B162378, B162381, B162394, B162396
-# # thirteenth group: B162397, B162398, B162399
-# # fourteenth group: B302066076, B302066077
-# # fifteenth group: B302065980, B302065981
-# # sixteenth group: B302030808, B302030809, B302030810, B302030807, B302030811, B302030812, B302030813
-# # seventeenth group: B302012571, B302012572, B302012573, B162602, B2365744, B2365747
-# # eighteenth group: B302066212, B3020662121
-# # nineteenth group: B162618, B162619, B162620, B162621, B162622, B162623
-# # twentieth group: B162605, B162606
-# # twenty-first group: B162473, B162475, B162477, B162479, B162481
-
-# # create a dictionary to store the building names in each group
-# dict_group = {'group1': ['B302065793', 'B302065787', 'B302065792', 'B302065794', 'B302065791', 'B302065789'],
-#               'group2': ['B162597', 'B162593', 'B162591', 'B162595', 'B162600'],
-#               'group3': ['B162588', 'B162587', 'B162581'],
-#               'group4': ['B302022561', 'B302022562'],
-#               'group5': ['B302021386', 'B302021387', 'B302021388'],
-#               'group6': ['B162416', '162422'],
-#               'group7': ['B302024523', 'B302024524'],
-#               'group8': ['B302030821', 'B302030823', 'B302030825', 'B302030820', 'B302030824', 'B302030818', 'B302030819'],
-#               'group9': ['B162917', 'B162920'],
-#               'group10': ['B162932', 'B162933'],
-#               'group11': ['B162334', 'B162335', 'B162332', 'B162338'],
-#               'group12': ['B162372', 'B162382', 'B162376', 'B162393', 'B162462', 'B162465', 'B162467', 'B162379', 'B162378', 'B162381', 'B162394', 'B162396'],
-#               'group13': ['B162397', 'B162398', 'B162399'],
-#               'group14': ['B302066076', 'B302066077'],
-#               'group15': ['B302065980', 'B302065981'],
-#               'group16': ['B302030808', 'B302030809', 'B302030810', 'B302030807', 'B302030811', 'B302030812', 'B302030813'],
-#               'group17': ['B302012571', 'B302012572', 'B302012573', 'B162602', 'B2365744', 'B2365747'],
-#               'group18': ['B302066212', 'B3020662121'],
-#               'group19': ['B162618', 'B162619', 'B162620', 'B162621', 'B162622', 'B162623'],
-#               'group20': ['B162605', 'B162606'],
-#               'group21': ['B162473', 'B162475', 'B162477', 'B162479', 'B162481']
-#               }
