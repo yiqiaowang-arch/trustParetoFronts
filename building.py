@@ -19,10 +19,11 @@ the file name is the building id, or builidng id + PV, or building id + PVT, or 
 
 
 class Building:
-    def __init__(self, name, scenario_path):
+    def __init__(self, name: str, scenario_path: str, calliope_yaml_path: str):
         self.name: str = name
         self.scenario_path: str = scenario_path
-
+        self.yaml_path: str = calliope_yaml_path
+        
         # get type of emission system
         emission_dict = {'HVAC_HEATING_AS1': 80, 'HVAC_HEATING_AS4': 45}
         air_conditioning = gpd.read_file(self.scenario_path + r'\inputs\building-properties'
@@ -64,7 +65,6 @@ class Building:
         # time series data
         # read demand data
         demand_df = demand_df[['E_sys_kWh', 'Qhs_sys_kWh', 'Qcs_sys_kWh', 'Qww_sys_kWh']]
-
         self.app: pd.DataFrame = - demand_df[['E_sys_kWh']].astype('float64').rename(columns={'E_sys_kWh': self.name})
         self.sh: pd.DataFrame = - demand_df[['Qhs_sys_kWh']].astype('float64').rename(columns={'Qhs_sys_kWh': self.name})
         self.sc: pd.DataFrame = - demand_df[['Qcs_sys_kWh']].astype('float64').rename(columns={'Qcs_sys_kWh': self.name})
@@ -189,7 +189,7 @@ class Building:
         return building_specific_config
 
 
-    def get_building_model( self, yaml_path: str, store_folder: str,
+    def get_building_model( self, store_folder: str,
                                 building_status: pd.Series = pd.Series(), flatten_spikes=False, flatten_percentile=0.98, 
                                 to_lp=False, to_yaml=False, 
                                 obj='cost',
@@ -199,9 +199,6 @@ class Building:
         This function gets building parameters and read the scenario files to create a calliope model for the building.
 
         Input:
-        building_name:              str, the name of the building
-        building_scenario_folder:   str, the folder that contains the building's scenario files
-        yaml_path:                  str, the path to the yaml file that contains the energy hub configuration
         store_folder:               str, the folder that stores the results
         building_status:            pd.Series, the status of the building, including is_new, is_rebuilt, already_GSHP, already_ASHP, is_disheat
         flatten_spikes:             bool, if True, flatten the demand spikes
@@ -226,7 +223,7 @@ class Building:
                             'supply_SCFP': self.scfp_intensity
                             }
         # modify the building_specific_config to match the building's status
-        building_specific_config: calliope.AttrDict = calliope.AttrDict.from_yaml(yaml_path)
+        building_specific_config: calliope.AttrDict = calliope.AttrDict.from_yaml(self.yaml_path)
         building_specific_config.set_key(key='locations.Building.available_area', value=self.area)
         print('the area of building '+self.name+' is '+str(self.area)+' m2')
         building_sub_dict = building_specific_config['locations'].pop('Building')
@@ -265,9 +262,10 @@ class Building:
         return model
     
 
-    def get_pareto_front(self, epsilon:int, building_name: str, building_scenario_folder: str, 
-                         yaml_path: str, store_folder: str,
-                         building_status: pd.Series = pd.Series(), flatten_spikes=False, flatten_percentile=0.98,
+    def get_pareto_front(self, epsilon:int, 
+                         store_folder: str,
+                         building_status: pd.Series = pd.Series(), 
+                         flatten_spikes=False, flatten_percentile=0.98,
                          to_lp=False, to_yaml=False):
         """
         Description:
@@ -300,35 +298,35 @@ class Building:
 
         df_pareto = pd.DataFrame(columns=['cost', 'emission'], index=range(epsilon+2))
         # read yaml file and get the list of technologies
-        tech_list = calliope.AttrDict.from_yaml(yaml_path).get_key(f'locations.Building.techs').keys()
+        tech_list = calliope.AttrDict.from_yaml(self.yaml_path).get_key(f'locations.Building.techs').keys()
         df_tech_cap_pareto = pd.DataFrame(columns=tech_list, index=range(epsilon+2))
         # first get the emission-optimal solution
-        model_emission = self.get_building_model(yaml_path=yaml_path, store_folder=store_folder, 
+        model_emission = self.get_building_model(store_folder=store_folder, 
                                                  building_status=building_status, flatten_spikes=flatten_spikes, 
                                                  flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                  obj='emission')
         model_emission.run()
-        model_emission.to_netcdf(path=store_folder + '/' + building_name+'_emission.nc')
+        model_emission.to_netcdf(path=store_folder + '/' + self.name+'_emission.nc')
         print('emission is done')
         # store the cost and emission in df_pareto
-        df_emission = model_emission.get_formatted_array('cost').sel(locs=building_name).to_pandas().transpose().sum(axis=0)
+        df_emission = model_emission.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
         # add the cost and emission to df_pareto
         df_pareto.loc[0] = [df_emission['monetary'], df_emission['co2']]
         # store the technology capacities in df_tech_cap_pareto
         df_tech_cap_pareto.loc[0] = model_emission.get_formatted_array('energy_cap').to_pandas().iloc[0]
         
         # then get the cost-optimal solution
-        model_cost = self.get_building_model(yaml_path=yaml_path, store_folder=store_folder, 
+        model_cost = self.get_building_model(store_folder=store_folder, 
                                              building_status=building_status, flatten_spikes=flatten_spikes, 
                                              flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                              obj='cost')
         # run model cost, and find both cost and emission of this result
         model_cost.run()
-        model_cost.to_netcdf(path=store_folder  + '/' + building_name+'_cost.nc')
+        model_cost.to_netcdf(path=store_folder  + '/' + self.name+'_cost.nc')
         print('cost is done')
         # store the cost and emission in df_pareto
         # add epsilon name as row index, start with epsilon_0
-        df_cost: pd.DataFrame = model_cost.get_formatted_array('cost').sel(locs=building_name).to_pandas().transpose().sum(axis=0) # first column co2, second column monetary
+        df_cost = model_cost.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0) # first column co2, second column monetary
         # add the cost and emission to df_pareto
         df_pareto.loc[epsilon+1] = [df_cost['monetary'], df_cost['co2']]
         # store the technology capacities in df_tech_cap_pareto
@@ -351,15 +349,15 @@ class Building:
                 print(f'starting epsilon {i}')
                 # set the emission constraint to be emission_min + i * interval
                 emission_constraint = emission_min + i * interval
-                model_epsilon = self.get_building_model(yaml_path=yaml_path, store_folder=store_folder, 
+                model_epsilon = self.get_building_model(store_folder=store_folder, 
                                                         building_status=building_status, flatten_spikes=flatten_spikes, 
                                                         flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                         obj='cost', emission_constraint=emission_constraint)
                 model_epsilon.run()
-                model_epsilon.to_netcdf(path=store_folder  + '/' + building_name + f'_epsilon_{i}.nc')
+                model_epsilon.to_netcdf(path=store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
                 print(f'epsilon {i} is done')
                 # store the cost and emission in df_pareto
-                df_epsilon = model_epsilon.get_formatted_array('cost').sel(locs=building_name).to_pandas().transpose().sum(axis=0)
+                df_epsilon = model_epsilon.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
                 # add the cost and emission to df_pareto
                 df_pareto.loc[i] = [df_epsilon['monetary'], df_epsilon['co2']]
                 # store the technology capacities in df_tech_cap_pareto
@@ -395,3 +393,50 @@ class Building:
         self.sh = self.flatten_spikes(self.sh, self.name, percentile, is_positive=False)
         self.sc = self.flatten_spikes(self.sc, self.name, percentile, is_positive=False)
         self.dhw = self.flatten_spikes(self.dhw, self.name, percentile, is_positive=False)
+
+# # define the buildings with the same developer, and they will devide the DH capex equally
+# # first group: B302065793, B302065787, B302065792, B302065794, B302065791, B302065789
+# # second group: B162597, B162593, B162591, B162595, B162600
+# # third group: B162588, B162587, B162581
+# # fourth group: B302022561, B302022562
+# # fifth group: B302021386, B302021387, B302021388
+# # sixth group: B162416, 162422
+# # seventh group: B302024523, B302024524
+# # eighth group: B302030821, B302030823, B302030825, B302030820, B302030824, B302030818, B302030819
+# # ninth group: B162917, B162920
+# # tenth group: B162932, B162933
+# # eleventh group: B162334, B162335, B162332, B162338
+# # twelfth group: B162372, B162382, B162376, B162393, B162462, B162465, B162467, B162379, B162378, B162381, B162394, B162396
+# # thirteenth group: B162397, B162398, B162399
+# # fourteenth group: B302066076, B302066077
+# # fifteenth group: B302065980, B302065981
+# # sixteenth group: B302030808, B302030809, B302030810, B302030807, B302030811, B302030812, B302030813
+# # seventeenth group: B302012571, B302012572, B302012573, B162602, B2365744, B2365747
+# # eighteenth group: B302066212, B3020662121
+# # nineteenth group: B162618, B162619, B162620, B162621, B162622, B162623
+# # twentieth group: B162605, B162606
+# # twenty-first group: B162473, B162475, B162477, B162479, B162481
+
+# # create a dictionary to store the building names in each group
+# dict_group = {'group1': ['B302065793', 'B302065787', 'B302065792', 'B302065794', 'B302065791', 'B302065789'],
+#               'group2': ['B162597', 'B162593', 'B162591', 'B162595', 'B162600'],
+#               'group3': ['B162588', 'B162587', 'B162581'],
+#               'group4': ['B302022561', 'B302022562'],
+#               'group5': ['B302021386', 'B302021387', 'B302021388'],
+#               'group6': ['B162416', '162422'],
+#               'group7': ['B302024523', 'B302024524'],
+#               'group8': ['B302030821', 'B302030823', 'B302030825', 'B302030820', 'B302030824', 'B302030818', 'B302030819'],
+#               'group9': ['B162917', 'B162920'],
+#               'group10': ['B162932', 'B162933'],
+#               'group11': ['B162334', 'B162335', 'B162332', 'B162338'],
+#               'group12': ['B162372', 'B162382', 'B162376', 'B162393', 'B162462', 'B162465', 'B162467', 'B162379', 'B162378', 'B162381', 'B162394', 'B162396'],
+#               'group13': ['B162397', 'B162398', 'B162399'],
+#               'group14': ['B302066076', 'B302066077'],
+#               'group15': ['B302065980', 'B302065981'],
+#               'group16': ['B302030808', 'B302030809', 'B302030810', 'B302030807', 'B302030811', 'B302030812', 'B302030813'],
+#               'group17': ['B302012571', 'B302012572', 'B302012573', 'B162602', 'B2365744', 'B2365747'],
+#               'group18': ['B302066212', 'B3020662121'],
+#               'group19': ['B162618', 'B162619', 'B162620', 'B162621', 'B162622', 'B162623'],
+#               'group20': ['B162605', 'B162606'],
+#               'group21': ['B162473', 'B162475', 'B162477', 'B162479', 'B162481']
+#               }
