@@ -304,6 +304,17 @@ class Building:
             Along with index of number of epsilon cut. 0: emission-optimal, epsilon+1: cost-optimal.
         - It also returns the df_tech_cap_pareto, which contains the technology capacities of each solution.
 
+        Steps to achieve multi-objective optimization (epsilon-cut):
+        1. prepare cost data (monetary: HSLU database; emission: KBOB, limitation: different database);
+        2. Input into calliope configuration;
+        3. Define available technology;
+        4. Solve for min-cost $(C_L, E_L)$ and min-emission $(C_R, E_R)$;
+        5. define amount of cuts (n), and primary objective (normally Cost)
+        6. Divide emission range $[E_L, E_R]$ into n parts, $E_0 = E_L, E_1, ..., E_i, ..., E_n-1, E_n=E_R$;
+        7. optimize for C, with constriaint of $E\leq E_i$;
+        8. get n+1 points: $(C_0, E_0) = (C_L, E_L), (C_1, E_1), ..., (C_i, E_i), ..., (C_n-1, E_n-1), (C_n, E_n) = (C_R, E_R)$
+        9. link these points in a coordinate plane to form the pareto front.
+        
         Inputs:
         - epsilon:                  int, the number of epsilon cuts between cost-optimal and emission-optimal solutions
         - building_name:            str, the name of the building
