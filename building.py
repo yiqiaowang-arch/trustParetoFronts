@@ -1,5 +1,3 @@
-from operator import le
-from turtle import left
 import geopandas as gpd
 import pandas as pd
 import numpy as np
