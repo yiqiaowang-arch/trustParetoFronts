@@ -11,7 +11,8 @@ calliope.set_log_verbosity(verbosity='error', include_solver_output=False, captu
 warnings.filterwarnings('ignore')
 
 scenario_folder = r'C:\Users\wangy\OneDrive\ETHY2FW\IDP_Personal\CEA\2050 w3'
-yaml_path = './data/technology/techs_plot8_24h.yml'
+# yaml_path = './data/technology/techs_plot8_24h.yml'
+yaml_path = './data/technology/techs_plot8_simplified.yml'
 store_folder = './pareto_no_wood/pareto_no_wood_test'
 zone_gdf = gpd.read_file(scenario_folder+r'\inputs\building-geometry\zone.shp')
 
@@ -36,8 +37,8 @@ for index in zone_gdf.index:
     building.calliope_config.set_key(key=f'locations.{building.name}.techs.wood_supply.constraints.energy_cap_max', 
                                      value=(building.area+400)*0.5*0.001)
     # update geothermal storage max capacity
-    building.calliope_config.set_key(key=f'locations.{building.name}.techs.geothermal_boreholes.constraints.energy_cap_max',
-                                     value=(building.area+400)*0.1) # assume 100W/m2 max yield
+    # building.calliope_config.set_key(key=f'locations.{building.name}.techs.geothermal_boreholes.constraints.energy_cap_max',
+    #                                  value=(building.area+400)*0.1) # assume 100W/m2 max yield
     
     building.get_pareto_front(epsilon=3, store_folder=store_folder,
                               flatten_spikes=True, flatten_percentile=0.98, 

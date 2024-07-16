@@ -43,6 +43,7 @@ class Building:
                                'lon': zone.loc[self.name, 'geometry'].centroid.x}
         
         self.calliope_config: calliope.AttrDict = calliope.AttrDict.from_yaml(self.yaml_path)
+        # rename the building sub-dictionary to the building name
         building_sub_dict_temp = self.calliope_config['locations'].pop('Building')
         self.calliope_config['locations'][self.name] = building_sub_dict_temp
         del building_sub_dict_temp
@@ -168,61 +169,46 @@ class Building:
             pass
         elif building_status['is_renovated']: # renovated, can do GSHP and ASHP but price higher
             if building_status['already_GSHP']: # already has GSHP, only need to set ASHP price higher, and GSHP price to 0
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.purchase', 0)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.energy_cap', 0)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.purchase', 0)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.energy_cap', 0)
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 18086)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
             elif building_status['already_ASHP']: # ASHP for heating no cost; but ASHP for DHW higher; also GSHP higher
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.purchase', 39934)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.energy_cap', 1316)
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 0)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 0)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
             else: # no GSHP and no ASHP, set both to higher price
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.purchase', 39934)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.energy_cap', 1316)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.purchase', 39934)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.energy_cap', 1316)
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 18086)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
         else: # not new, so no new GSHP but new ASHP allowed; however if they are already with GSHP or ASHP, then no corresponding cost is applied
             if building_status['already_GSHP']:
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.purchase', 0)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP_heat.costs.monetary.energy_cap', 0)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.purchase', 0)
+                self.calliope_config.set_key(f'locations.{self.name}.techs.GSHP.costs.monetary.energy_cap', 0)
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 18086)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
             elif building_status['already_ASHP']: # no previous GSHP, so delete GSHP keys; 
-                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP_heat')
-                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP_cooling')
+                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP')
                 self.calliope_config.del_key(f'locations.{self.name}.techs.geothermal_boreholes')
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 0)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 0)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
             else: # no previous GSHP and no previous ASHP, so delete GSHP keys and higher ASHP keys
-                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP_heat')
-                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP_cooling')
-                self.calliope_config.del_key(f'locations.{self.name}.techs.geothermal_boreholes')
+                self.calliope_config.del_key(f'locations.{self.name}.techs.GSHP')
                 
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.purchase', 18086)
                 self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP.costs.monetary.energy_cap', 1360)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.purchase', 18086)
-                self.calliope_config.set_key(f'locations.{self.name}.techs.ASHP_DHW.costs.monetary.energy_cap', 1360)
 
         del building_status_dfs_list, building_status, name
 
 
-    def get_building_model( self, store_folder: str,
+    def get_building_model( self,
                            flatten_spikes=False, flatten_percentile=0.98, 
                            to_lp=False, to_yaml=False, 
                            obj='cost',
@@ -232,7 +218,6 @@ class Building:
         This function gets building parameters and read the scenario files to create a calliope model for the building.
 
         Input:
-        store_folder:               str, the folder that stores the results
         building_status:            pd.Series, the status of the building, including is_new, is_rebuilt, already_GSHP, already_ASHP, is_disheat
         flatten_spikes:             bool, if True, flatten the demand spikes
         flatten_percentile:         float, the percentile to flatten the spikes
@@ -282,9 +267,9 @@ class Building:
         print(self.calliope_config.get_key('run.objective_options.cost_class'))
         model = calliope.Model(self.calliope_config, timeseries_dataframes=self.dict_timeseries_df)
         if to_lp:
-            model.to_lp(store_folder+'/'+self.name+'.lp')
+            model.to_lp(self.store_folder+'/'+self.name+'.lp')
         if to_yaml:
-            model.save_commented_model_yaml(store_folder+'/'+self.name+'.yaml')
+            model.save_commented_model_yaml(self.store_folder+'/'+self.name+'.yaml')
         return model
     
 
@@ -314,7 +299,7 @@ class Building:
         7. optimize for C, with constriaint of $E\leq E_i$;
         8. get n+1 points: $(C_0, E_0) = (C_L, E_L), (C_1, E_1), ..., (C_i, E_i), ..., (C_n-1, E_n-1), (C_n, E_n) = (C_R, E_R)$
         9. link these points in a coordinate plane to form the pareto front.
-        
+
         Inputs:
         - epsilon:                  int, the number of epsilon cuts between cost-optimal and emission-optimal solutions
         - building_name:            str, the name of the building
@@ -331,18 +316,17 @@ class Building:
         - df_pareto:                pd.DataFrame, the pareto front of the building, with cost and emission as columns
         - df_tech_cap_pareto:       pd.DataFrame, the technology capacities of each solution
         """
-
+        self.store_folder = store_folder
         df_pareto = pd.DataFrame(columns=['cost', 'emission'], index=range(epsilon+2))
         # read yaml file and get the list of technologies
         tech_list = self.calliope_config.get_key(f'locations.{self.name}.techs').keys()
         df_tech_cap_pareto = pd.DataFrame(columns=tech_list, index=range(epsilon+2))
         # first get the emission-optimal solution
-        model_emission = self.get_building_model(store_folder=store_folder, 
-                                                 flatten_spikes=flatten_spikes, 
+        model_emission = self.get_building_model(flatten_spikes=flatten_spikes, 
                                                  flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                  obj='emission')
         model_emission.run()
-        model_emission.to_netcdf(path=store_folder + '/' + self.name+'_emission.nc')
+        model_emission.to_netcdf(path=self.store_folder + '/' + self.name+'_emission.nc')
         print('emission is done')
         # store the cost and emission in df_pareto
         df_emission = model_emission.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
@@ -352,13 +336,12 @@ class Building:
         df_tech_cap_pareto.loc[0] = model_emission.get_formatted_array('energy_cap').to_pandas().iloc[0]
         
         # then get the cost-optimal solution
-        model_cost = self.get_building_model(store_folder=store_folder, 
-                                             flatten_spikes=False, # self.timeseries have been modified, no need to flatten spikes again
+        model_cost = self.get_building_model(flatten_spikes=False, # self.timeseries have been modified, no need to flatten spikes again
                                              flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                              obj='cost')
         # run model cost, and find both cost and emission of this result
         model_cost.run()
-        model_cost.to_netcdf(path=store_folder  + '/' + self.name+'_cost.nc')
+        model_cost.to_netcdf(path=self.store_folder  + '/' + self.name+'_cost.nc')
         print('cost is done')
         # store the cost and emission in df_pareto
         # add epsilon name as row index, start with epsilon_0
@@ -385,12 +368,11 @@ class Building:
                 print(f'starting epsilon {i}')
                 # set the emission constraint to be emission_min + i * interval
                 emission_constraint = emission_min + i * interval
-                model_epsilon = self.get_building_model(store_folder=store_folder, 
-                                                        flatten_spikes=False, # self.timeseries have been modified, no need to flatten spikes again
+                model_epsilon = self.get_building_model(flatten_spikes=False, # self.timeseries have been modified, no need to flatten spikes again
                                                         flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                         obj='cost', emission_constraint=emission_constraint)
                 model_epsilon.run()
-                model_epsilon.to_netcdf(path=store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
+                model_epsilon.to_netcdf(path=self.store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
                 print(f'epsilon {i} is done')
                 # store the cost and emission in df_pareto
                 df_epsilon = model_epsilon.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
@@ -403,6 +385,64 @@ class Building:
             df_pareto = df_pareto.astype({'cost': float, 'emission': float})
             self.df_pareto = df_pareto
             self.df_tech_cap_pareto = df_tech_cap_pareto
+
+    
+    def get_current_cost_emission(self):
+        """
+        Description:
+        This function reads the current technology setup of the building, delete all irrelevant technologies,
+        then "optimize" the building (with the only feasible choice) to get the current cost and emission.
+        Finally, it returns the cost and emission in a pd.Series, and add it to the self.df_pareto with index 999.
+
+        the current tech setup is stored in self.building_status. For example, it looks like:
+        DisHeat                       2025
+        Rebuild                        0.0
+        Renovation                     0.0
+        type_hs         SUPPLY_HEATING_AS7
+        is_disheat                    True
+        is_rebuilt                   False
+        is_renovated                 False
+        already_GSHP                 False
+        already_ASHP                 False
+        no_heat                      False
+        Name: B162298, dtype: object
+
+        Meaning of type_hs (SUPPLY_HEATING_ASX):
+        0. no heating
+        1. oil boiler
+        2. coal boiler
+        3. gas boiler
+        4. electric boiler
+        5. wood boiler
+        6. GSHP (ground source heat pump)
+        7. ASHP (air source heat pump)
+        """
+
+        # first, delete DHDC_small_heat, DHDC_medium_heat, DHDC_large_heat, 
+        # PV, SCFP, battery, DHW_storage, heaat_storage. These do not exist in the current setup
+        unrealistic_tech_list = ['DHDC_small_heat', 'DHDC_medium_heat', 'DHDC_large_heat',
+                                    'PV', 'SCFP', 'battery', 'DHW_storage', 'heat_storage']
+        
+        if self.building_status['no_heat']:
+            # in this case, should raise error because there's no heating system
+            raise ValueError('no heating system in the building')
+        elif self.building_status['already_GSHP']:
+            # in this case, delete ASHP
+            unrealistic_tech_list += ['ASHP', 'wood_boiler']
+        elif self.building_status['already_ASHP']:
+            # in this case, delete GSHP
+            unrealistic_tech_list += ['GSHP', 'wood_boiler']
+        else:
+            # if the building is originally using gas or oil boiler, by 2050 it should have changed to ASHP
+            unrealistic_tech_list += ['GSHP', 'wood_boiler']
+
+        for tech in unrealistic_tech_list:
+            self.calliope_config.del_key(f'locations.{self.name}.techs.{tech}')
+        
+        model_current = self.get_building_model()
+            
+        
+
 
         
     def flatten_spikes(self, df: pd.DataFrame, column_name, percentile: float = 0.98, is_positive: bool = False):
