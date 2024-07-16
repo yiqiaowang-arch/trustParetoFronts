@@ -40,11 +40,12 @@ for index in zone_gdf.index:
     # building.calliope_config.set_key(key=f'locations.{building.name}.techs.geothermal_boreholes.constraints.energy_cap_max',
     #                                  value=(building.area+400)*0.1) # assume 100W/m2 max yield
     
-    building.get_pareto_front(epsilon=3, store_folder=store_folder,
+    building.get_pareto_front(epsilon=1, store_folder=store_folder,
                               flatten_spikes=True, flatten_percentile=0.98, 
                               to_lp=False, to_yaml=False)
-    
-    building.df_pareto.to_csv(store_folder+'/'+building_name+'_pareto.csv')
+    building.get_current_cost_emission()
+    df_pareto_aug = building.df_pareto.merge(building.df_tech_cap_pareto, left_index=True, right_index=True)
+    df_pareto_aug.to_csv(store_folder+'/'+building_name+'_pareto.csv')
     print(building_name+' is done!')
     del building
     gc.collect()

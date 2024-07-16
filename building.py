@@ -253,6 +253,10 @@ class Building:
         # if emission constraint is not None, add it to the self.calliope_config
         if emission_constraint is not None:
             self.calliope_config.set_key(key='group_constraints.systemwide_co2_cap.cost_max.co2', value=emission_constraint)
+        else:
+            # check if the emission constraint is already in the config, if so, delete it
+            if bool(self.calliope_config.get_key('group_constraints.systemwide_co2_cap.cost_max.co2')):
+                self.calliope_config.set_key(key='group_constraints.systemwide_co2_cap.cost_max.co2', value=None)
         
         # if obj is cost, set the objective to be cost; if obj is emission, set the objective to be emission
         if obj == 'cost':
@@ -296,7 +300,7 @@ class Building:
         4. Solve for min-cost $(C_L, E_L)$ and min-emission $(C_R, E_R)$;
         5. define amount of cuts (n), and primary objective (normally Cost)
         6. Divide emission range $[E_L, E_R]$ into n parts, $E_0 = E_L, E_1, ..., E_i, ..., E_n-1, E_n=E_R$;
-        7. optimize for C, with constriaint of $E\leq E_i$;
+        7. optimize for C, with constriaint of $E\\leq E_i$;
         8. get n+1 points: $(C_0, E_0) = (C_L, E_L), (C_1, E_1), ..., (C_i, E_i), ..., (C_n-1, E_n-1), (C_n, E_n) = (C_R, E_R)$
         9. link these points in a coordinate plane to form the pareto front.
 
@@ -316,10 +320,12 @@ class Building:
         - df_pareto:                pd.DataFrame, the pareto front of the building, with cost and emission as columns
         - df_tech_cap_pareto:       pd.DataFrame, the technology capacities of each solution
         """
+        
         self.store_folder = store_folder
         df_pareto = pd.DataFrame(columns=['cost', 'emission'], index=range(epsilon+2))
         # read yaml file and get the list of technologies
-        tech_list = self.calliope_config.get_key(f'locations.{self.name}.techs').keys()
+        tech_list = self.calliope_config.get_key(f'locations.{self.name}.techs').keys() # type: ignore
+        # calliope does not define the type of the return value, so it's ignored
         df_tech_cap_pareto = pd.DataFrame(columns=tech_list, index=range(epsilon+2))
         # first get the emission-optimal solution
         model_emission = self.get_building_model(flatten_spikes=flatten_spikes, 
@@ -327,7 +333,7 @@ class Building:
                                                  obj='emission')
         model_emission.run()
         model_emission.to_netcdf(path=self.store_folder + '/' + self.name+'_emission.nc')
-        print('emission is done')
+        print('optimization for emission is done')
         # store the cost and emission in df_pareto
         df_emission = model_emission.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
         # add the cost and emission to df_pareto
@@ -342,7 +348,7 @@ class Building:
         # run model cost, and find both cost and emission of this result
         model_cost.run()
         model_cost.to_netcdf(path=self.store_folder  + '/' + self.name+'_cost.nc')
-        print('cost is done')
+        print('optimization for cost is done')
         # store the cost and emission in df_pareto
         # add epsilon name as row index, start with epsilon_0
         df_cost = model_cost.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0) # first column co2, second column monetary
@@ -373,7 +379,7 @@ class Building:
                                                         obj='cost', emission_constraint=emission_constraint)
                 model_epsilon.run()
                 model_epsilon.to_netcdf(path=self.store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
-                print(f'epsilon {i} is done')
+                print(f'optimization at epsilon {i} is done')
                 # store the cost and emission in df_pareto
                 df_epsilon = model_epsilon.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
                 # add the cost and emission to df_pareto
@@ -381,7 +387,6 @@ class Building:
                 # store the technology capacities in df_tech_cap_pareto
                 df_tech_cap_pareto.loc[i] = model_epsilon.get_formatted_array('energy_cap').to_pandas().iloc[0]
                 
-            df_pareto = df_pareto.merge(df_tech_cap_pareto, left_index=True, right_index=True)
             df_pareto = df_pareto.astype({'cost': float, 'emission': float})
             self.df_pareto = df_pareto
             self.df_tech_cap_pareto = df_tech_cap_pareto
@@ -437,12 +442,22 @@ class Building:
             unrealistic_tech_list += ['GSHP', 'wood_boiler']
 
         for tech in unrealistic_tech_list:
-            self.calliope_config.del_key(f'locations.{self.name}.techs.{tech}')
+            # first check if the tech exists in the building config
+            if tech in self.df_tech_cap_pareto.columns:
+                self.calliope_config.del_key(f'locations.{self.name}.techs.{tech}')
         
-        model_current = self.get_building_model()
-            
-        
-
+        model_current = self.get_building_model(flatten_spikes=False, 
+                                                flatten_percentile=0.98, to_lp=False, to_yaml=False, 
+                                                obj='cost')
+        print(f'calculating current cost and emission for building {self.name}')
+        model_current.run()
+        print(f'current cost and emission for building {self.name} is done')
+        sr_cost_current: pd.Series = model_current.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
+        # add the cost and emission to df_pareto
+        self.df_pareto.loc[999] = [sr_cost_current['monetary'], sr_cost_current['co2']]
+        # store the technology capacities in df_tech_cap_pareto
+        self.df_tech_cap_pareto.loc[999] = model_current.get_formatted_array('energy_cap').to_pandas().iloc[0]
+        self.df_tech_cap_pareto.fillna(0, inplace=True)
 
         
     def flatten_spikes(self, df: pd.DataFrame, column_name, percentile: float = 0.98, is_positive: bool = False):

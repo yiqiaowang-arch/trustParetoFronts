@@ -9,11 +9,11 @@ model:
         function_options:
             resolution: '1M'
 
-#group_constraints:
-#    # A constraint group to apply a systemwide CO2 cap
-#    systemwide_co2_cap:
-#        cost_max:
-#            co2: 100000
+group_constraints:
+   # A constraint group to apply a systemwide CO2 cap
+   systemwide_co2_cap:
+       cost_max:
+           co2:
 
 run:
     bigM: 1e8
