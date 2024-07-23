@@ -330,7 +330,7 @@ class Building:
                                                  flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                  obj='emission')
         model_emission.run()
-        model_emission.to_netcdf(path=self.store_folder + '/' + self.name+'_emission.nc')
+        # model_emission.to_netcdf(path=self.store_folder + '/' + self.name+'_emission.nc')
         print('optimization for emission is done')
         # store the cost and emission in df_pareto
         df_emission = model_emission.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)
@@ -345,7 +345,7 @@ class Building:
                                              obj='cost')
         # run model cost, and find both cost and emission of this result
         model_cost.run()
-        model_cost.to_netcdf(path=self.store_folder  + '/' + self.name+'_cost.nc')
+        # model_cost.to_netcdf(path=self.store_folder  + '/' + self.name+'_cost.nc')
         print('optimization for cost is done')
         # store the cost and emission in df_pareto
         # add epsilon name as row index, start with epsilon_0
@@ -376,7 +376,7 @@ class Building:
                                                         flatten_percentile=flatten_percentile, to_lp=to_lp, to_yaml=to_yaml, 
                                                         obj='cost', emission_constraint=emission_constraint)
                 model_epsilon.run()
-                model_epsilon.to_netcdf(path=self.store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
+                # model_epsilon.to_netcdf(path=self.store_folder  + '/' + self.name + f'_epsilon_{i}.nc')
                 print(f'optimization at epsilon {i} is done')
                 # store the cost and emission in df_pareto
                 df_epsilon = model_epsilon.get_formatted_array('cost').sel(locs=self.name).to_pandas().transpose().sum(axis=0)

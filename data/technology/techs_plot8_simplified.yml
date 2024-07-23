@@ -7,7 +7,7 @@ model:
     time:
         function: 'resample'
         function_options:
-            resolution: '1M'
+            resolution: '1d'
 
 group_constraints:
    # A constraint group to apply a systemwide CO2 cap
